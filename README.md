@@ -12,21 +12,21 @@ Requirements.txt contains the necessary libraries.
 ## Usage
 
 Open a python console and run :
-'''bash
+```bash
 pip install -r requirements.txt
-'''
+```
 This will add the libraries to your environment.
 
 Then, open a system terminal in the folder containing the files, and run in this order :
-'''bash
+```bash
 python3 Kernel.py
-'''
-'''bash
+```
+```bash
 python3 model.py
-'''
-'''bash
+```
+```bash
 python3 modelisation_single.py
-'''
+```
 You can delete the Inputs folder that appeared after running Kernel.py
 
 This will generate everything you need to run the code held in the following repos:
