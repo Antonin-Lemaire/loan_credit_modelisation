@@ -10,6 +10,8 @@ from sklearn.ensemble import GradientBoostingClassifier
 from lime.lime_tabular import LimeTabularExplainer
 from pydantic import BaseModel
 import dill
+from sklearn.inspection import PartialDependenceDisplay
+import matplotlib.pyplot as plt
 
 
 class ClassifierAPI:
@@ -66,6 +68,16 @@ def prediction(pipe, instance, explainer):
     return output, explanation
 
 
+def global_explainer(X, classifier, features):
+    print('explaining model')
+    # df_testing = X.sample(frac=0.001)
+    print(features)
+    for feat in features:
+        PartialDependenceDisplay.from_estimator(classifier, X, features=[feat], feature_names=features, kind='both')
+        plt.gca()
+        plt.savefig(str('model_explanation'+str(feat)))
+
+
 class Instance:
     def __init__(self, id, df):
         self.id = id
@@ -92,6 +104,7 @@ if __name__ == "__main__":
     with open('placeholder_mcdoctorate.sav', 'rb') as ph_dee:
         model = pickle.load(ph_dee)
     api_model = ClassifierAPI(model, explainer)
+    global_explainer(X, model, feats)
     dill.dump(api_model, open('api_model.pkl', 'wb'))
 
 
