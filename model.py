@@ -12,30 +12,20 @@ from sklearn.model_selection import GridSearchCV
 import pickle
 
 
-def _positive_sigmoid(x):
-    return 1 / (1 + np.exp(-x))
+def custom_loss(y_true, y_pred):
 
+    gain = 0.1
+    loss = -1
 
-def _negative_sigmoid(x):
-    exp = np.exp(x)
-    return exp / (exp + 1)
-
-
-def sigmoid(x):
-    positive = x >= 0
-    negative = ~positive
-    result = np.empty_like(x)
-    result[positive] = _positive_sigmoid(x[positive])
-    result[negative] = _negative_sigmoid(x[negative])
-    return result
-
-
-def custom_loss(z, data):
-    t = data
-    y = sigmoid(z)
-    grad = y - t
-    hess = y * (1 - y)
-    return grad, hess
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    actual_gain = (fn * loss + tn * gain)
+    min_gain = (fn+tp) * loss
+    max_gain = (tn+fp) * gain
+    eval_result = (actual_gain - min_gain) / (max_gain - min_gain)
+    eval_name = 'penalized_loss'
+    is_higher_better = True
+    # return eval_name, eval_result, is_higher_better
+    return eval_result
 
 
 def custom_metric(y_true, y_pred):
@@ -47,22 +37,12 @@ def custom_metric(y_true, y_pred):
     return eval_name, eval_result, is_higher_better
 
 
-def score_cost(y_true, y_pred):
-    report = classification_report(y_true, y_pred, output_dict=True )
-    cost_score = (9*report['0.0']['precision']+ report['0.0']['recall']+report['1.0']['precision']+9*report['1.0']['recall'])/20
-    return cost_score
-
-
-def custom_asymmetric_train(y_true, y_pred):
-    residual = (y_true - y_pred).astype("float")
-    grad = np.where(residual<0, -2*10.0*residual, -2*residual)
-    hess = np.where(residual<0, 2*10.0, 2.0)
-    return grad, hess
-
-
 def search(data):
     scaler = StandardScaler()
-    model = LGBMClassifier(objective=custom_loss)
+    model = LGBMClassifier(learning_rate=0.2,
+                           num_iterations=5000,
+                           n_estimators=100,
+                           objective='binary')
     rebalance = SMOTE()
     pipe = Pipeline([('scaler', scaler), ("balance", rebalance), ('model', model)])
 
@@ -70,7 +50,7 @@ def search(data):
                   "model__num_iterations": [5000],
                   "model__n_estimators": [100]}
 
-    clf = GridSearchCV(pipe, param_grid, cv=5, n_jobs=2)
+    clf = GridSearchCV(pipe, param_grid, cv=5, n_jobs=2, scoring=make_scorer(custom_loss))
 
     feats = [f for f in data.columns if
              f not in ['TARGET', 'SK_ID_CURR', 'SK_ID_BUREAU', 'SK_ID_PREV', 'index']]
@@ -79,16 +59,16 @@ def search(data):
     selector = SelectKBest(f_classif, k=20)
     X_new = selector.fit_transform(X, y)
     print(selector.get_feature_names_out())
-
-    clf.fit(X_new, y)
+    Xtrain, Xtest, ytrain, ytest = train_test_split(X_new, y)
+    clf.fit(Xtrain, ytrain)
 
     print(clf.best_params_)
     selection = clf.best_estimator_
 
-    y_pred = selection.predict(X_new)
-    confu = confusion_matrix(y, y_pred)
+    y_pred = selection.predict(Xtest)
+    confu = confusion_matrix(ytest, y_pred)
     print(confu)
-    _, score_value, __ = custom_metric(y, y_pred)
+    score_value= custom_loss(ytest, y_pred)
     print('penalized score : {}'.format(score_value))
     return clf
 
